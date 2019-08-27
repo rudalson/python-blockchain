@@ -1,20 +1,28 @@
+from datetime import datetime
 import hashlib
 import json
 
 
-class Block():
-    def __init__(self, nonce, tstamp, transaction, prevhash=''):
-        self.nonce = nonce
+class Transaction:
+    def __init__(self, from_address, to_address, amount):
+        self.from_address = from_address
+        self.to_address = to_address
+        self.amount = amount
+
+
+class Block:
+    def __init__(self, tstamp, transaction_list, prevhash=''):
+        self.nonce = 0
         self.tstamp = tstamp
-        self.transaction = transaction
+        self.transaction_list = transaction_list
         self.prevhash = prevhash
         self.hash = self.calc_hash()
 
     def calc_hash(self):
         block_string = json.dumps(
             {"nonce": self.nonce,
-             "tstamp": self.tstamp,
-             "transaction": self.transaction,
+             "tstamp": str(self.tstamp),
+             "transaction_list": self.transaction_list[0].amount,   # temporary
              "prevhash": self.prevhash},
             sort_keys=True).encode()
         return hashlib.sha256(block_string).hexdigest()
@@ -28,27 +36,44 @@ class Block():
     def __str__(self):
         string = "nonce: " + str(self.nonce) + '\n'
         string += "tstamp: " + str(self.tstamp) + '\n'
-        string += "transaction: " + str(self.transaction) + '\n'
+        string += "transaction_list: " + str(self.transaction_list) + '\n'
         string += "prevhash: " + str(self.prevhash) + '\n'
         string += "hash: " + str(self.hash)
         return string
 
 
-class BlockChain():
+class BlockChain:
     def __init__(self):
         self.chain = [self.generate_genesis_block(), ]
-        self.difficulty = 2
+        self.pending_transactions = []
+        self.mining_reward = 100
+        self.difficulty = 3
 
     def generate_genesis_block(self):
-        return Block(0, '25/08/2019', 'Genesis Block')
+        return Block('25/08/2019', [Transaction(None, None, 0), ])
 
     def get_last_block(self):
         return self.chain[-1]
 
-    def add_block(self, new_block):
-        new_block.prevhash = self.get_last_block().hash
-        new_block.mine_block(self.difficulty)
-        self.chain.append(new_block)
+    def mine_pending_transaction(self, mining_reward_address):
+        block = Block(datetime.now(), self.pending_transactions)
+        block.mine_block(self.difficulty)
+        print('Block is mined to got reward', self.mining_reward)
+        self.chain.append(block)
+        self.pending_transactions = [Transaction(None, mining_reward_address, self.mining_reward)]
+
+    def create_transaction(self, transaction):
+        self.pending_transactions.append(transaction)
+
+    def get_balance(self, address):
+        balance = 0
+        for b in self.chain:
+            for t in b.transaction_list:
+                if t.to_address == address:
+                    balance += t.amount
+                if t.from_address == address:
+                    balance += t.amount
+        return balance
 
     def is_chain_valid(self):
         for i in range(1, len(self.chain)):
@@ -64,12 +89,16 @@ class BlockChain():
 
 
 pycoin = BlockChain()
-pycoin.add_block(Block(1, '26/08/2019', 100))
-pycoin.add_block(Block(2, '26/08/2019', 20))
-print()
 
-for b in pycoin.chain:
-    print(b)
-    print()
+pycoin.create_transaction(Transaction('address1', 'address2', 100))
+pycoin.create_transaction(Transaction('address2', 'address1', 40))
+print("Starting mining")
+pycoin.mine_pending_transaction('MyAddress')
+print("Pycoin miner balance is ", pycoin.get_balance("MyAddress"))
 
-print(pycoin.is_chain_valid())
+pycoin.create_transaction(Transaction('address1', 'address2', 100))
+pycoin.create_transaction(Transaction('address2', 'address1', 50))
+print("Starting mining 2nd")
+pycoin.mine_pending_transaction('MyAddress')
+print("Pycoin miner balance is ", pycoin.get_balance("MyAddress"))
+# print(pycoin.is_chain_valid())
